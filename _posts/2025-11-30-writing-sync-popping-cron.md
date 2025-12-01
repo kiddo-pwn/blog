@@ -19,7 +19,7 @@ However, two weeks ago, I stumbled upon a [tweet from b33f](https://x.com/FuzzyS
 
 **But here is the twist.** While comparing our approaches, I noticed that my path to Remote Code Execution (RCE) deviated from the original research.
 
-Rather than a completely new discovery, I had identified a novel, simple application of the SQLite "Dirty File Write" primitive. I weaponized SQLite Injection to target the **crontab**, establishing a reliable RCE vector specifically for PHP-free environments—a scenario lacking published universal technique for code execution.
+Rather than a completely new discovery, I had identified a simple universal application of the SQLite "Dirty File Write" primitive. I verified SQLite Injection to target the **crontab**, establishing a reliable RCE vector specifically for PHP-free environments—a scenario lacking published universal technique.
 
 In this post, I will share the technical details of my N-day analysis and introduce this SQLite-to-Crontab RCE technique, which serves as a universal alternative in the PHP web shell.
 
@@ -47,13 +47,11 @@ To understand the vulnerability chain, we need to briefly review two key compone
 
 BeeStation web exposes most functionality via a single endpoint: `/webapi/entry.cgi`. `nginx` forwards requests to the `synoscgi` Unix Domain Socket, which routes them to specific shared libraries (`.so`) based on configuration files (`.lib`).
 
-_Path: `hda1/usr/syno/synoman/webapi/SYNO.API.Auth.lib`_
-
 ```json
 {
   "SYNO.API.Auth": {
     "appPriv": "",
-    "authLevel": 0, // [!]
+    "authLevel": 0,
     "disableSocket": false,
     "lib": "lib/SYNO.API.Auth.so",
     "maxVersion": 7,
@@ -415,7 +413,7 @@ The payload is expected to work as follow:
 4. Insert the crontab entry, wrapped with newlines to isolate it from SQLite metadata
 5. Comment out the remainder of the original SQL query with `--`
 
-Upon execution, the created file `/etc/cron.d/pwn.task` contains a mix of binary SQLite headers and our injected text. But thanks to the newlines, our crontab entry sits cleanly on its own line:
+Upon execution, the created file `/etc/cron.d/pwn.task` contains a mix of binary SQLite headers and injected text. But thanks to the newlines, crontab entry sits cleanly on its own line:
 
 ![]({{"/assets/images/2025-11-30-writing-sync-popping-cron/exploit_pwn_task.png" | relative_url}})
 _Red: New Line(`\n`), Blue: Crontab Line_
@@ -446,7 +444,7 @@ This chain is a compelling case study of how chaining seemingly low-severity pri
 
 Primary credit for the discovery of these vulnerabilities belongs to [Pumpkin](https://x.com/u1f383) and [Orange Tsai](https://x.com/orange_8361) of DEVCORE. Additionally, the research by [Ryan Emmons](https://x.com/the_emmons) provided the theoretical foundation for the exploitation.
 
-The SQLite-to-Crontab technique demonstrates a universal application feasible in general Linux environments. Fundamentally, this is simply a re-this is a strategic re-application of Dirty File Write primitives—shifting the exploitation context from PHP's parsing logic to the cron daemon.
+Thhis SQLite-to-Crontab technique demonstrates a universal application feasible in general Linux environments. Fundamentally, this is simply a re-application of Dirty File Write primitives—shifting the exploitation context from PHP's parsing logic to the cron daemon.
 
 By generalizing this vector, I hope this technique serves as a viable RCE option in PHP-free environments!
 

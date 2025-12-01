@@ -1,7 +1,7 @@
 ---
 layout: post
 author: Kiddo
-title: "Writing Sync, Popping Cron: DEVCORE's Synology BeeStation RCE & A Novel SQLite RCE Technique (CVE-2024-50629~50631)"
+title: "Writing Sync, Popping Cron: DEVCORE's Synology BeeStation RCE & A Novel SQLite Injection RCE Technique (CVE-2024-50629~50631)"
 toc: true
 ---
 
@@ -21,7 +21,7 @@ However, two weeks ago, I stumbled upon a [tweet from b33f](https://x.com/FuzzyS
 
 Rather than a completely new discovery, I had identified a simple universal application of the SQLite "Dirty File Write" primitive. I verified SQLite Injection to target the **crontab**, establishing a reliable RCE vector specifically for PHP-free environments—a scenario lacking published universal technique.
 
-In this post, I will share the technical details of my N-day analysis and introduce this SQLite-to-Crontab RCE technique, which serves as a universal alternative in the PHP web shell.
+In this post, I will share the technical details of my N-day analysis and introduce this SQLite Injection RCE technique, which serves as a universal alternative in the PHP web shell.
 
 > Disclaimer: I am not the original discoverer. I only conducted N-day analysis independently after patches were released. This post is published with the blessing of the original researchers!
 
@@ -464,7 +464,7 @@ This chain is a compelling case study of how chaining seemingly low-severity pri
 
 Primary credit for the discovery of these vulnerabilities belongs to [Pumpkin](https://x.com/u1f383) and [Orange Tsai](https://x.com/orange_8361) of DEVCORE. Additionally, the research by [Ryan Emmons](https://x.com/the_emmons) provided the theoretical foundation for the exploitation.
 
-Thhis SQLite-to-Crontab technique demonstrates a universal application feasible in general Linux environments. Fundamentally, this is simply a re-application of Dirty File Write primitives—shifting the exploitation context from PHP's parsing logic to the cron daemon.
+This SQLite Injection RCE technique demonstrates a universal application feasible in general Linux environments. Fundamentally, this is simply a re-application of Dirty File Write primitives—shifting the exploitation context from PHP's parsing logic to the cron daemon.
 
 By generalizing this vector, I hope this technique serves as a viable RCE option in PHP-free environments!
 
